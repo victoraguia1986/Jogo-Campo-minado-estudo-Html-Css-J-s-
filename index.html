@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campo Minado Moderno</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    .info {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 1rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(8, 50px);
+      gap: 5px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+    .cell {
+      width: 50px;
+      height: 50px;
+      background-color: #2a2a3d;
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.3rem;
+      color: #fff;
+      transition: background 0.2s, transform 0.1s;
+      user-select: none;
+      box-shadow: inset 0 0 4px rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.4);
+    }
+    .cell:hover {
+      background-color: #3b3b5c;
+      transform: scale(1.05);
+    }
+    .cell.revealed {
+      background-color: #6a6a93;
+      cursor: default;
+    }
+    .cell.mine {
+      background-color: #d32f2f;
+    }
+    .cell.flag {
+      background-color: #f57c00;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      background: #4a90e2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #357ab8;
+    }
+    footer {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <h1>💣 Campo Minado</h1>
+  <div class="info">
+    <div>Mines: <span id="mine-count">10</span></div>
+    <div>Tempo: <span id="timer">0</span>s</div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button onclick="resetGame()">🔁 Reiniciar</button>
+  <footer>Desenvolvido com ☕ por um mineiro curioso</footer>
+
+  <audio id="musicaFundo" src="musica de fundo loop.mp3" preload="auto"></audio>
+  <audio id="somEscolha" src="escolha.mp3" preload="auto"></audio>
+  <audio id="somExplosao" src="explosao.mp3" preload="auto"></audio>
+  <audio id="somVitoria" src="vitoria.mp3" preload="auto"></audio>
+  <audio id="somDerrota" src="derrota.mp3" preload="auto"></audio>
+  <audio id="somBandeira" src="bandeira.mp3" preload="auto"></audio>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const mineCounter = document.getElementById("mine-count");
+    const timerDisplay = document.getElementById("timer");
+    const width = 8;
+    const height = 8;
+    const mineCount = 10;
+    let cells = [];
+    let timer;
+    let seconds = 0;
+    let flags = 0;
+    let gameOver = false;
+
+    const musicaFundo = document.getElementById("musicaFundo");
+    const somEscolha = document.getElementById("somEscolha");
+    const somExplosao = document.getElementById("somExplosao");
+    const somVitoria = document.getElementById("somVitoria");
+    const somDerrota = document.getElementById("somDerrota");
+    const somBandeira = document.getElementById("somBandeira");
+
+    
+    musicaFundo.addEventListener("ended", function () {
+      this.currentTime = 0;
+      this.play();
+    });
+
+    function startTimer() {
+      timer = setInterval(() => {
+        seconds++;
+        timerDisplay.textContent = seconds;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timer);
+    }
+
+    function resetGame() {
+      grid.innerHTML = "";
+      cells = [];
+      flags = 0;
+      seconds = 0;
+      gameOver = false;
+      timerDisplay.textContent = 0;
+      mineCounter.textContent = mineCount;
+      stopTimer();
+      musicaFundo.currentTime = 0;
+      musicaFundo.play();
+      createBoard();
+    }
+
+    function createBoard() {
+      const mines = Array(mineCount).fill("mine");
+      const empty = Array(width * height - mineCount).fill("empty");
+      const board = [...mines, ...empty].sort(() => Math.random() - 0.5);
+
+      board.forEach((type, i) => {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
+        cell.dataset.index = i;
+        cell.dataset.type = type;
+        cell.dataset.revealed = "false";
+
+        cell.addEventListener("click", () => {
+          if (!timer) {
+            startTimer();
+            if (musicaFundo.paused) musicaFundo.play();
+          }
+          revealCell(i);
+        });
+
+        cell.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          toggleFlag(i);
+        });
+
+        grid.appendChild(cell);
+        cells.push(cell);
+      });
+    }
+
+    function getNeighbors(index) {
+      const neighbors = [];
+      const x = index % width;
+      const y = Math.floor(index / width);
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            neighbors.push(ny * width + nx);
+          }
+        }
+      }
+      return neighbors;
+    }
+
+    function revealCell(index) {
+      const cell = cells[index];
+      if (gameOver || cell.classList.contains("revealed") || cell.classList.contains("flag")) return;
+
+      cell.classList.add("revealed");
+      cell.dataset.revealed = "true";
+
+      if (cell.dataset.type === "mine") {
+        somExplosao.play();
+        cell.classList.add("mine");
+        cell.textContent = "💣";
+        gameOver = true;
+        stopTimer();
+        musicaFundo.pause();
+
+        somDerrota.play();
+        setTimeout(() => {
+          alert("💥 Fim de jogo!");
+        }, 200);
+        return;
+      }
+
+      const neighbors = getNeighbors(index);
+      const mineCount = neighbors.filter(i => cells[i].dataset.type === "mine").length;
+
+      if (mineCount > 0) {
+        cell.textContent = mineCount;
+      } else {
+        cell.textContent = "😊";
+        neighbors.forEach(revealCell);
+      }
+
+      somEscolha.play();
+      checkWin();
+    }
+
+    function toggleFlag(index) {
+      const cell = cells[index];
+      if (gameOver || cell.classList.contains("revealed")) return;
+
+      if (cell.classList.toggle("flag")) {
+        flags++;
+        cell.textContent = "🚩";
+      } else {
+        flags--;
+        cell.textContent = "";
+      }
+
+      mineCounter.textContent = mineCount - flags;
+      somBandeira.play();
+      checkWin();
+    }
+
+    function checkWin() {
+      const revealed = cells.filter(c => c.dataset.revealed === "true").length;
+      if (revealed === width * height - mineCount && !gameOver) {
+        gameOver = true;
+        stopTimer();
+        musicaFundo.pause();
+        somVitoria.play();
+        alert("🎉 Você venceu!");
+      }
+    }
+
+    createBoard();
+  </script>
+</body>
+</html>
